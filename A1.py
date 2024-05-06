@@ -27,7 +27,7 @@ def outp(N=50): # Daten für die Ausgabefunktion generieren
     x = np.linspace(0, 1, N)
     y = np.linspace(0, 1, N)
     xx, yy = np.meshgrid(x, y)
-    oo = step(weight[0] + weight[1]*xx + weight[2]*yy)
+    oo = step(weight[0] + weight[1]*xx + weight[2]*yy) 
     return xx, yy, oo
 
 def on_close(event): # Fenster schließen
