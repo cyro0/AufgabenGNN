@@ -1,9 +1,8 @@
-import mnist.loader
 import numpy as np
-import tensorflow as tf
-from keras import layers
-from keras import datasets
-import mnist
+from tensorflow.keras.datasets import fashion_mnist
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Input
+import matplotlib.pyplot as plt
 
 x, y, x_test, y_test = mnist.mnist()
 

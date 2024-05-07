@@ -17,7 +17,7 @@ x_test = x_test.reshape((len(x_test), np.prod(x_test.shape[1:])))
 
 # Definieren Sie die Schichten des Autoencoders
 input_img = Input(shape=(784,))
-encoded = Dense(128, activation='relu')(input_img)
+encoded = Dense(128, activation='relu')(input_img) 
 encoded = Dense(64, activation='relu')(encoded)
 encoded = Dense(32, activation='relu')(encoded)
 decoded = Dense(64, activation='relu')(encoded)
