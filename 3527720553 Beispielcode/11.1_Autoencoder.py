@@ -2,7 +2,7 @@ import numpy as np
 from tensorflow.keras.datasets import fashion_mnist
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Input
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt 
 
 # Laden Sie den Fashion MNIST-Datensatz
 (x_train, _), (x_test, _) = fashion_mnist.load_data()

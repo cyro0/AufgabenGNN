@@ -1,74 +1,86 @@
 import numpy as np
-from tensorflow.keras.datasets import fashion_mnist
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, Input
 import matplotlib.pyplot as plt
+from tensorflow.keras.datasets import mnist
 
-x, y, x_test, y_test = mnist.mnist()
+(x_train, _), (x_test, _) = mnist.load_data()
 
-#(x_train, _), (x_test, _) = mnist.load_data()
+# Normalisierung der Daten auf Werte zwischen 0 und 1
+x_train = x_train.astype('float32') / 255
+x_test = x_test.astype('float32') / 255
 
-# # Normalisieren der Daten auf Werte zwischen 0 und 1
-# x_train = x_train.astype('float32') / 255
-# x_test = x_test.astype('float32') / 255
+# Anzahl der sichtbaren Neuronen (entspricht der Anzahl der Pixel in einem MNIST-Bild)
+num_visible = 28
 
-# # Anzahl der sichtbaren Einheiten (entspricht der Anzahl der Pixel in einem MNIST-Bild)
-# n_visible = 784
+# Anzahl der verborgenen Neuronen
+num_hidden = 28
 
-# # Anzahl der versteckten Einheiten
-# n_hidden = 128
+# Gewichte und Biases initialisieren
+W = np.random.randn(num_visible, num_hidden) * 0.01
+vb = np.zeros(num_visible)
+hb = np.zeros(num_hidden)
 
-# # Initialisierung der Gewichte und Biases
-# W = tf.Variable(tf.random.normal((n_visible, n_hidden), mean=0.0, stddev=0.01))
-# v_bias = tf.Variable(tf.zeros(shape=(n_visible,)))
-# h_bias = tf.Variable(tf.zeros(shape=(n_hidden,)))
+# Lernrate
+learning_rate = 0.01
 
-# def gibbs_step(v):
-#   # Aktivierung der versteckten Einheiten
-#   h = tf.nn.sigmoid(tf.matmul(v, W) + h_bias)
+# Anzahl der Epochen
+num_epochs = 10
 
-#   # Rekonstruktion der sichtbaren Einheiten
-#   v_prime = tf.nn.sigmoid(tf.matmul(h, tf.transpose(W)) + v_bias)
+# Trainingsschleife
+for epoch in range(num_epochs):
+  for i in range(len(x_train)):
+    # Aktivierung der sichtbaren Schicht
+    v = x_train[i]
 
-#   # Erneute Aktivierung der versteckten Einheiten
-#   h_prime = tf.nn.sigmoid(tf.matmul(v_prime, W) + h_bias)
+    # Transponieren von v, um die Dimensionen an W anzupassen
+    v = v.T
 
-#   return v_prime, h_prime
+    # Aktivierung der verborgenen Schicht
+    h = 1 / (1 + np.exp(-np.dot(v, W) - hb))
 
-# # Funktion zum Ausführen von n Gibbs-Sampling-Schritten
-# def gibbs_sampling(v, n_steps):
-#   for _ in range(n_steps):
-#     v, h = gibbs_step(v)
-#   return v
+    # Rekonstruktion der sichtbaren Schicht
+    v_prime = 1 / (1 + np.exp(-np.dot(h, W.T) - vb))
 
-# # Optimierer
-# optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
+    # Fehler berechnen
+    error = np.mean((v - v_prime)**2)
 
-# # Trainingsloop
-# for epoch in range(10):
-#   for i in range(len(x_train)):
-#     # Rekonstruktion der Eingabe
-#     v_prime = gibbs_sampling(x_train[i], n_steps=10)
+    # Update der Gewichte und Biases
+    dW = np.dot(v.T, h) - np.dot(v_prime.T, h)
+    dvb = np.mean(v - v_prime)
+    dhb = np.mean(h - v_prime)
 
-#     # Rekonstruktionsfehler berechnen
-#     reconstruction_error = tf.reduce_mean(tf.square(v_prime - x_train[i]))
+    W += learning_rate * dW
+    vb += learning_rate * dvb
+    hb += learning_rate * dhb
 
-#     # Gradienten berechnen und Parameter aktualisieren
-#     with tf.GradientTape() as tape:
-#       loss = reconstruction_error
-#     gradients = tape.gradient(loss, [W, v_bias, h_bias])
-#     optimizer.apply_gradients(zip(gradients, [W, v_bias, h_bias]))
+# Testen der RBM
+rekonstruierte_bilder = []
+for i in range(10):
+  # Aktivierung der sichtbaren Schicht
+  v = x_test[i]
 
-#   # Testen der Rekonstruktionsleistung
-#   reconstructed_digits = gibbs_sampling(x_test, n_steps=10)
-#   reconstruction_error = tf.reduce_mean(tf.square(reconstructed_digits - x_test))
-#   print(f"Epoche {epoch}: Rekonstruktionsfehler: {reconstruction_error.numpy()}")
+  # Transponieren von v, um die Dimensionen an W anzupassen
+  v = v.T
 
-# # Rekonstruieren Sie einige Testbilder und visualisieren Sie sie
-# reconstructed_digits = gibbs_sampling(x_test[:10], n_steps=10)
+  # Aktivierung der verborgenen Schicht
+  h = 1 / (1 + np.exp(-np.dot(v, W) - hb))
 
-# import matplotlib.pyplot as plt
+  # Rekonstruktion der sichtbaren Schicht
+  v_prime = 1 / (1 + np.exp(-np.dot(h, W.T) - vb))
 
-# for i in range(10):
-#   plt.imshow(reconstructed_digits[i].reshape(28, 28))
-#   plt.show()
+  # Rekonstruiertes Bild visualisieren
+  rekonstruierte_bilder.append(v_prime.T)  # Transponieren von v_prime zurück
+
+fig, axes = plt.subplots(2, 5, figsize=(10, 5))
+for i in range(10):
+  axes[i // 5, i % 5].imshow(x_test[i], cmap='gray')
+  axes[i // 5, i % 5].axis('off')
+
+fig.suptitle('Originale MNIST-Bilder')
+
+fig, axes = plt.subplots(2, 5, figsize=(10, 5))
+for i in range(10):
+  axes[i // 5, i % 5].imshow(rekonstruierte_bilder[i], cmap='gray')
+  axes[i // 5, i % 5].axis('off')
+
+fig.suptitle('Rekonstruierte Bilder mit RBM')
+plt.show()
