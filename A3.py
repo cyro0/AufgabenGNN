@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 from keras.datasets import mnist
 (x_train, _), (x_test, _) = mnist.load_data()
@@ -20,58 +21,70 @@ layers = [
 ]
 
 # global properties
-l, errors, epochs = len(layers), [], 30
+layerslength = len(layers)
+errors = []
+epochs = 5
+
 # adam properties
-lr, b1, b2 = 0.002, 0.9, 0.999
-rw,mw,rb,mb = {},{},{},{}
+learningrate = 0.002
+beta1 = 0.9
+beta2 = 0.999
+momentum_term, uncorrected_moving_avg_gradient, momentum_term_2, uncorrected_moving_avg_sqaured_gradient = {},{},{},{}
+
 # layer properties
-a,w,b,f, = {},{},{},{}
-for i, layer in zip(range(1,l+1), layers):
+activation, weight, biases, function = {},{},{},{}
+for i, layer in zip(range(1, layerslength+1), layers):
     n_out, n_in = layer["shape"]
-    f[i] = layer["act"]
+    function[i] = layer["act"]
+
     # Xavier Initialization of weights
-    w[i] = np.random.randn(n_out, n_in) / n_in**0.5
-    b[i], rb[i], mb[i] = [np.zeros((n_out,1)) for i in [1,2,3]]
-    rw[i], mw[i] = [np.zeros((n_out, n_in)) for i in [1,2]]
+    weight[i] = np.random.randn(n_out, n_in) / n_in**0.5
+    biases[i], momentum_term_2[i], uncorrected_moving_avg_sqaured_gradient[i] = [np.zeros((n_out,1)) for i in [1,2,3]]
+    momentum_term[i], uncorrected_moving_avg_gradient[i] = [np.zeros((n_out, n_in)) for i in [1,2]]
 
 for t in range(1, epochs+1):
     # Train
     for batch in np.split(x_train, 30):
+
         # Forward pass
-        a[0] = batch.T
-        for i in range(1,l+1):
-            a[i] = f[i]((w[i] @ a[i-1]) + b[i])
+        activation[0] = batch.T
+        for i in range(1,layerslength+1):
+            activation[i] = function[i]((weight[i] @ activation[i-1]) + biases[i])
+            
         # Backpropagation
-        dz,dw,db = {},{},{}
-        for i in range(1,l+1)[::-1]:
-            d = w[i+1].T @ dz[i+1] if l-i else 0.5*(a[l]-a[0])
-            dz[i] = d * f[i](a[i],d=1)
-            dw[i] = dz[i] @ a[i-1].T
-            db[i] = np.sum(dz[i], 1, keepdims=True)
+        backprop_activation, backprop_weight, backprop_biases = {},{},{}
+        for i in range(1,layerslength+1)[::-1]:
+            backprop_error = weight[i+1].T @ backprop_activation[i+1] if layerslength-i else 0.5*(activation[layerslength]-activation[0])
+            backprop_activation[i] = backprop_error * function[i](activation[i],d=1)
+            backprop_weight[i] = backprop_activation[i] @ activation[i-1].T
+            backprop_biases[i] = np.sum(backprop_activation[i], 1, keepdims=True)
+
         # Adam updates
-        def adam(m, r, z, dz, i):
-            m[i] = b1 * m[i] + (1 - b1) * dz[i]
-            r[i] = b2 * r[i] + (1 - b2) * dz[i]**2
-            m_hat = m[i] / (1. - b1**t)
-            r_hat = r[i] / (1. - b2**t) 
-            z[i] -= lr * m_hat / (r_hat**0.5 + 1e-12)
-        for i in range(1,l+1):
-            adam(mw, rw, w, dw, i)
-            adam(mb, rb, b, db, i)
+        def adam(moving_avg, momentum, weight_bias, backprop, i):
+            moving_avg[i] = beta1 * moving_avg[i] + (1 - beta1) * backprop[i]
+            momentum[i] = beta2 * momentum[i] + (1 - beta2) * backprop[i]**2
+            moving_avg_hat = moving_avg[i] / (1. - beta1**t)
+            momentum_hat = momentum[i] / (1. - beta2**t) 
+            weight_bias[i] -= learningrate * moving_avg_hat / (momentum_hat**0.5 + 1e-12)
+            
+        for i in range(1,layerslength+1):
+            adam(uncorrected_moving_avg_gradient, momentum_term, weight, backprop_weight, i)
+            adam(uncorrected_moving_avg_sqaured_gradient, momentum_term_2, biases, backprop_biases, i)
+
     # Validate
-    a[0] = x_test.T
-    for i in range(1,l+1):
-        a[i] = f[i]((w[i] @ a[i-1]) + b[i])
-    errors += [np.mean((a[l]-a[0])**2)]
+    activation[0] = x_test.T
+    for i in range(1,layerslength+1):
+        activation[i] = function[i]((weight[i] @ activation[i-1]) + biases[i])
+    errors += [np.mean((activation[layerslength]-activation[0])**2)]
     print("Val loss - ", errors[-1])
 
-import matplotlib.pyplot as plt
-y_pred = []
-a[0] = x_train[:20].T
+prediction = []
+activation[0] = x_train[:20].T
+
 #forward pass
-for i in range(1,l+1):
-    a[i] = f[i](w[i] @ a[i-1] + b[i])
-y_pred = a[l]
+for i in range(1,layerslength+1):
+    activation[i] = function[i](weight[i] @ activation[i-1] + biases[i])
+prediction = activation[layerslength]
 
 plt.figure(figsize=(20,5))
 
@@ -82,12 +95,12 @@ for i in range(20):
 
 for i in range(20):
     plt.subplot(3, 20, i + 1 + 20)
-    plt.imshow(a[l-2].T[i].reshape(5,-1), cmap="gray")
+    plt.imshow(activation[layerslength-2].T[i].reshape(5,-1), cmap="gray")
     plt.axis("off")
     
 for i in range(20):
     plt.subplot(3, 20, i + 1 + 40)
-    plt.imshow(y_pred.T[i].reshape(28,28), cmap="gray")
+    plt.imshow(prediction.T[i].reshape(28,28), cmap="gray") 
     plt.axis("off")
 
 plt.show()
