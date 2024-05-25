@@ -1,12 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
-def tanh(x):
-  return (np.exp(x) - np.exp(-x)) / (np.exp(x) + np.exp(-x))
-
-def neuron(o, wbias, w):
-  net_input = wbias + np.dot(w, o)
-  return tanh(net_input)
+import math
 
 # Initialisierung der Parameter
 wbias1 = -3.37
@@ -26,6 +20,14 @@ num_steps = 100
 # Speichern der neuronalen Ausgaben in Listen
 o1_history = []
 o2_history = []
+
+# Tangens hyperbolicus transferfunction
+def tanh(x):
+  return (2 / (1 + np.power(math.e, -2 * x))) - 1
+
+def neuron(o, wbias, w):
+  net_input = wbias + np.dot(w, o)
+  return tanh(net_input)
 
 # Simulation des rekursiven neuronalen Netzes
 for t in range(num_steps):
