@@ -2,18 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def max_pooling_2d(image, filter_size, stride):
-  """
-  Führt 2D Max-Pooling auf einem Bild mit der angegebenen Filtergröße und Schrittweite durch.
-
-  Args:
-    image: Das Eingabebild (zweidimensionales Array).
-    filter_size: Die Größe des Pooling-Filters (z.B. 2x2).
-    stride: Die Schrittweite für die Filterbewegung (z.B. 2).
-
-  Returns:
-    Das gepoolte Bild (zweidimensionales Array).
-  """
-
   image_height, image_width = image.shape
 
   # Berechne die Ausgabegröße des gepoolten Bildes
