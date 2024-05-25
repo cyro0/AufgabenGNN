@@ -1,106 +1,101 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import tensorflow as tf
+import pygame
+import random
+import threading
 
-from keras.datasets import mnist
-(x_train, _), (x_test, _) = mnist.load_data()
-x_train = (x_train / 255).reshape(-1, 784)
-x_test = (x_test / 255).reshape(-1, 784)
+# Loading MNIST
+(x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+x_train, x_test = x_train / 255.0, x_test / 255.0
 
-def sigmoid(z, d=False):
-    return sigmoid(z) * (1 - sigmoid(z)) + 1e-12 if d else 1 / (1 + np.exp(-z))
+# Autoencoder network architecture (vis 0 will be declared in 'train_network' function as the input layer)
+vis1 = np.zeros((784))
+hid0 = np.zeros((100))
+hid1 = np.zeros((100))
 
-def relu(z, d=False):
-    return (z > 0)+1e-12 if d else  z * (z > 0)
+# Global properties
+learning_rate = 0.01
+c = np.random.rand(100)
+b = np.random.rand(784)
+weights = np.random.rand(100, 784) 
 
-layers = [
-    # activation, shape:(out,in)
-    {"act":relu, "shape":(1024,784)},
-    {"act":relu, "shape":(50,1024)},
-    {"act":relu, "shape":(1024,50)},
-    {"act":sigmoid, "shape":(784,1024)}
-]
+# Sigmoid activation function
+def sigmoid(x):
+    return np.divide(1, np.add(np.exp(-x, x), 1, x), x) # this calculation of sigmoid prevents overflow
+   
+def train_network(input):
+    vis0 = input.flatten() # Inputlayer
 
-# global properties
-layerslength = len(layers)
-errors = []
-epochs = 5
+    # Positive Phase
+    np.matmul(weights, vis0, hid0)
+    np.add(hid0, c, hid0)
+    sigmoid(hid0)
 
-# adam properties
-learningrate = 0.002
-beta1 = 0.9
-beta2 = 0.999
-momentum_term, uncorrected_moving_avg_gradient, momentum_term_2, uncorrected_moving_avg_sqaured_gradient = {},{},{},{}
+    # Negative Phase
+    np.matmul(weights.T, hid0, vis1)
+    np.add(vis1, b, vis1)
+    sigmoid(vis1)
 
-# layer properties
-activation, weight, biases, function = {},{},{},{}
-for i, layer in zip(range(1, layerslength+1), layers):
-    n_out, n_in = layer["shape"]
-    function[i] = layer["act"]
-
-    # Xavier Initialization of weights
-    weight[i] = np.random.randn(n_out, n_in) / n_in**0.5
-    biases[i], momentum_term_2[i], uncorrected_moving_avg_sqaured_gradient[i] = [np.zeros((n_out,1)) for i in [1,2,3]]
-    momentum_term[i], uncorrected_moving_avg_gradient[i] = [np.zeros((n_out, n_in)) for i in [1,2]]
-
-for t in range(1, epochs+1):
-    # Train
-    for batch in np.split(x_train, 30):
-
-        # Forward pass
-        activation[0] = batch.T
-        for i in range(1,layerslength+1):
-            activation[i] = function[i]((weight[i] @ activation[i-1]) + biases[i])
-            
-        # Backpropagation
-        backprop_activation, backprop_weight, backprop_biases = {},{},{}
-        for i in range(1,layerslength+1)[::-1]:
-            backprop_error = weight[i+1].T @ backprop_activation[i+1] if layerslength-i else 0.5*(activation[layerslength]-activation[0])
-            backprop_activation[i] = backprop_error * function[i](activation[i],d=1)
-            backprop_weight[i] = backprop_activation[i] @ activation[i-1].T
-            backprop_biases[i] = np.sum(backprop_activation[i], 1, keepdims=True)
-
-        # Adam updates
-        def adam(moving_avg, momentum, weight_bias, backprop, i):
-            moving_avg[i] = beta1 * moving_avg[i] + (1 - beta1) * backprop[i]
-            momentum[i] = beta2 * momentum[i] + (1 - beta2) * backprop[i]**2
-            moving_avg_hat = moving_avg[i] / (1. - beta1**t)
-            momentum_hat = momentum[i] / (1. - beta2**t) 
-            weight_bias[i] -= learningrate * moving_avg_hat / (momentum_hat**0.5 + 1e-12)
-            
-        for i in range(1,layerslength+1):
-            adam(uncorrected_moving_avg_gradient, momentum_term, weight, backprop_weight, i)
-            adam(uncorrected_moving_avg_sqaured_gradient, momentum_term_2, biases, backprop_biases, i)
-
-    # Validate
-    activation[0] = x_test.T
-    for i in range(1,layerslength+1):
-        activation[i] = function[i]((weight[i] @ activation[i-1]) + biases[i])
-    errors += [np.mean((activation[layerslength]-activation[0])**2)]
-    print("Val loss - ", errors[-1])
-
-prediction = []
-activation[0] = x_train[:20].T
-
-#forward pass
-for i in range(1,layerslength+1):
-    activation[i] = function[i](weight[i] @ activation[i-1] + biases[i])
-prediction = activation[layerslength]
-
-plt.figure(figsize=(20,5))
-
-for i in range(20):
-    plt.subplot(3, 20, i + 1)
-    plt.imshow(x_train[i].reshape(28,28), cmap="gray")
-    plt.axis("off")
-
-for i in range(20):
-    plt.subplot(3, 20, i + 1 + 20)
-    plt.imshow(activation[layerslength-2].T[i].reshape(5,-1), cmap="gray")
-    plt.axis("off")
+    # Positive Phase again
+    np.matmul(weights, vis1, hid1)
+    np.add(hid1, c, hid1)
+    sigmoid(hid1)
     
-for i in range(20):
-    plt.subplot(3, 20, i + 1 + 40)
-    plt.imshow(prediction.T[i].reshape(28,28), cmap="gray") 
-    plt.axis("off")
+    # Update weights
+    deltaW = learning_rate * (np.outer(hid0, vis0) - np.outer(hid1, vis1))
+    deltaC = learning_rate * (hid0 - hid1)
+    deltaB = learning_rate * (vis0 - vis1)
+    np.add(weights, deltaW, weights)
+    np.add(c, deltaC, c)
+    np.add(b, deltaB, b)
 
-plt.show()
+# Processing function for pygame and reconstruction
+def process(input):
+    proc_vis0 = input.flatten()
+    proc_vis1 = np.zeros((784))
+    proc_hid0 = np.zeros((100))
+
+    # Poitive Phase
+    np.matmul(weights, proc_vis0, proc_hid0)
+    np.add(proc_hid0, c, proc_hid0)
+    sigmoid(proc_hid0)
+
+    # Reconstruction
+    np.matmul(weights.T, proc_hid0, proc_vis1)
+    np.add(proc_vis1, b, proc_vis1)
+    sigmoid(proc_vis1)
+
+    return proc_vis1
+
+# Convert grayscale to 3D rgb array
+def gray(im):
+    w, h = im.shape
+    ret = np.empty((w, h, 3), dtype=np.uint8)
+    ret[:, :, 2] = ret[:, :, 1] = ret[:, :, 0] = im
+    return ret
+
+# Train network with input from MNIST
+def train(n: int):
+    for i in range(n):
+        input = random.choice(x_test)
+        train_network(input)
+
+# Pygame initialization
+pygame.init()
+screen = pygame.display.set_mode((560, 280))
+clock = pygame.time.Clock()
+
+train_thread = threading.Thread(target=train, args=(100_000,))
+train_thread.start()
+
+first_iteration = True
+
+# Original and Reconstructed Image output with Pygame
+while True:
+    screen.fill((20, 20, 20))
+    input = random.choice(x_test)
+    output = process(input)
+    screen.blit(pygame.transform.scale(pygame.pixelcopy.make_surface(gray((input.transpose() * 255).astype(np.uint8))), (280, 280)), (0, 0))
+    screen.blit(pygame.transform.scale(pygame.pixelcopy.make_surface(gray((output.reshape(28, 28).transpose() * 255).astype(np.uint8))), (280, 280)), (280, 0))
+    pygame.display.update()
+    clock.tick(0.5)
